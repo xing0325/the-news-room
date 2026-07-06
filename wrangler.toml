@@ -1,0 +1,7 @@
+name = "the-news-room"
+compatibility_date = "2026-06-01"
+pages_build_output_dir = "web/out"
+
+[[kv_namespaces]]
+binding = "WORLD"
+id = "4097802668354b2bbb52ee389993bf03"
