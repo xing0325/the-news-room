@@ -97,11 +97,11 @@ v2 扩编停车场：《精神地理》（文化杂志，把书/城市/工具写
 - 待答采访问题列表
 - 新闻发布会按钮（P2：重大事件主动召开，全社连夜赶稿）
 
-## 5. 数据模型（Netlify Blobs · 文档存储）
+## 5. 数据模型（Cloudflare KV · 文档存储）
 
-> 2026-07-06 修订：Supabase 出局（`*.supabase.co` 国内被墙实测 curl/代理均连接复位；haoqi 项目疑在 HK 区、pooler 也被掐；且无 access token 开新项目）。改用 Netlify Blobs——同站点存储，国内可达性已由 gaoyou/qiantaici 两个在用站点验证。
+> 2026-07-06 二次修订：Supabase 出局（`*.supabase.co` 国内被墙实测；HK pooler 被掐；无 access token）→ Netlify 出局（**账号免费额度耗尽，全账号禁新部署**，实测 deploy API 403 "Account credit usage exceeded"）→ 定稿 **Cloudflare Pages + Pages Functions + KV**（国内可达性由 dengweir-shop.pages.dev 在用验证）。存储键值布局不变，"blob"一词在下文即 KV 条目。
 
-world store（单一 blob store）：
+world store（单一 KV namespace `WORLD`）：
 - `state/agencies.json` — [{id, name, charter, style, state:{声望,财务,标题党倾向,严厉度}, subscribed}]
 - `state/agents.json` — [{id, agency_id, name, role, persona(人格档案), state:{心情,压力,自信,声望,野心}, status:active|departed}]
 - `state/interviews.json` — [{id, asked_by, question, status:open|answered|expired, answer_event_id, edition_no}]
@@ -113,19 +113,20 @@ world store（单一 blob store）：
 
 并发安全靠写者拓扑而非锁：`events/*` 只有前端追加（不可变），其余全部只有 tick 单写者。AI 生成内容（editions）与原始记录（events）分开存放（原则 4 的物理保障）。
 
-## 6. 技术选型（多服务商免费拼接，无 Railway；2026-07-06 修订为 Netlify 主场）
+## 6. 技术选型（多服务商免费拼接，无 Railway；2026-07-06 二次修订为 Cloudflare 主场）
 
 | 部件 | 服务 | 免费额度依据 |
 |---|---|---|
-| 前端+API | Netlify 单站点：Next.js 静态导出（无 basePath）+ Functions（登录/读世界/写事件） | https://the-news-room-chichu.netlify.app ；国内可达性已由 gaoyou/qiantaici 验证；Functions 125k 次/月 |
-| 世界状态 | Netlify Blobs（同站点，§5 布局） | 免费额度内，纯文本世界极小 |
-| 刊期 tick | **GitHub Actions cron**（公有仓库标准 runner 免费，Node 脚本跑完整管线，经 token+siteID 外部读写 Blobs） | 每刊约 3-6 分钟 × 60 刊/月 |
-| LLM | DeepSeek（日常全部岗位）+ StepFun step-3.7-flash（兜底，走 api.stepfun.ai，max_tokens≥1400）；Claude 留给未来年度特稿"明星主笔" | 每刊 20-30 次调用 ≈ 5-10 万 token/天，DeepSeek 价位≈每天几毛，一个月一杯奶茶 |
-| 认证 | 单用户口令 → HMAC 会话 cookie；APP_PASSWORD_HASH + SESSION_SECRET 存站点环境变量 | 自带，零依赖 |
+| 前端+API | Cloudflare Pages 单项目：Next.js 静态导出（无 basePath）+ Pages Functions（functions/api/*：登录/feed/desk/newsroom/submit/action/blob-admin） | *.pages.dev 国内可达性由 dengweir-shop 在用验证；Functions 免费 10 万请求/天 |
+| 世界状态 | Cloudflare KV（namespace `WORLD`，§5 布局） | 免费写 1000 次/天，每刊约 40 写 × 2 刊 ≪ 限额 |
+| 刊期 tick | **GitHub Actions cron**（公有仓库标准 runner 免费，Node 管线经 HTTPS 打站点 `/api/blob-admin`，只需 SITE_URL+ADMIN_SECRET，**不需要 CF token**） | 每刊约 3-6 分钟 × 60 刊/月 |
+| LLM | DeepSeek（日常全部岗位）+ StepFun step-3.7-flash（兜底，走 api.stepfun.ai，max_tokens≥1400）；Claude 留给未来年度特稿"明星主笔" | 每刊 17-30 次调用，DeepSeek 价位≈每天几毛，一个月一杯奶茶 |
+| 认证 | 单用户口令 → HMAC 会话 cookie（`tnr_session`，90 天）；APP_PASSWORD_HASH + SESSION_SECRET + ADMIN_SECRET 存 Pages 项目环境变量 | 自带，零依赖 |
 
-- Actions secrets：NETLIFY_AUTH_TOKEN、NETLIFY_SITE_ID、DEEPSEEK_API_KEY、STEPFUN_API_KEY。
-- 部署走 `netlify deploy --prod`（qiantaici 同款，不吃 Netlify 构建分钟）。
-- Supabase 出局原因记录于 §5 修订注——**别回头再选它，除非用户换了网络环境**。
+- Actions secrets：SITE_URL、ADMIN_SECRET、DEEPSEEK_API_KEY、STEPFUN_API_KEY。
+- 站点部署走本地 `wrangler pages deploy`（世界的变化在 KV 里，不在部署里；代码不常改，push-to-deploy 自动化后续可用 CF API token 补）。
+- 本地全栈开发：`scripts-dev.cmd`（wrangler pages dev + miniflare 本地 KV，端口 8788，本地口令 dev）。
+- 出局案底：Supabase（被墙）、Netlify（额度耗尽 403）——**别回头再选，除非网络环境/账号额度变了**。site the-news-room-chichu.netlify.app 已建但部署被锁，留作 Netlify 额度恢复后的备胎。
 - "催更/发布会"即时出刊（P2）：Function 持 GitHub PAT 调 workflow_dispatch。
 - **模型分级=报社贫富**（设定钩子）：报社财务好→用更好的模型/更高 max_tokens，文风升级是涌现且叙事化的。v1 全员 DeepSeek，字段预留。
 - 成本护栏：每刊调用上限（如 40 次）+ 单文章 token 上限。这不是省 token 哲学倒退，是防 bug 死循环刷爆账单的保险丝。

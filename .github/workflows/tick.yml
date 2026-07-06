@@ -1,0 +1,38 @@
+name: tick
+
+# cron 即刊期：23:30 UTC = 北京 07:30 早刊；11:30 UTC = 北京 19:30 晚刊
+on:
+  schedule:
+    - cron: '30 23 * * *'
+    - cron: '30 11 * * *'
+  workflow_dispatch:
+    inputs:
+      label:
+        description: '刊别（早刊/晚刊/特刊，留空按时间自动）'
+        required: false
+        default: 'auto'
+
+concurrency: tick
+
+jobs:
+  edition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+        working-directory: engine
+      - run: npm test
+        working-directory: engine
+      - name: 出刊
+        run: node src/tick.js
+        working-directory: engine
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          STEPFUN_API_KEY: ${{ secrets.STEPFUN_API_KEY }}
+          EDITION_LABEL: ${{ github.event.inputs.label || 'auto' }}
