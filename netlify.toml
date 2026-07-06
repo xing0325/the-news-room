@@ -10,8 +10,3 @@
   command = "npm --prefix web run dev"
   targetPort = 8210
   framework = "#custom"
-
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
