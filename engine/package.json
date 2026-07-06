@@ -1,0 +1,15 @@
+{
+  "name": "the-news-room-engine",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "tick": "node --env-file=.env src/tick.js"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}

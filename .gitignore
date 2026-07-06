@@ -1,0 +1,7 @@
+node_modules/
+.env
+.env.*
+web/out/
+web/.next/
+.netlify/
+*.log

@@ -97,33 +97,36 @@ v2 扩编停车场：《精神地理》（文化杂志，把书/城市/工具写
 - 待答采访问题列表
 - 新闻发布会按钮（P2：重大事件主动召开，全社连夜赶稿）
 
-## 5. 数据模型（Supabase / Postgres）
+## 5. 数据模型（Netlify Blobs · 文档存储）
 
-- `events` — 原始输入：raw_text, type(diary/interview_answer/correction), created_at, wire_copy(通稿), scores(jsonb 6维), entities(jsonb 人物/作品/地点/主题), processed_edition_id
-- `agencies` — 报社：name, charter, style, 声望/财务/标题党倾向(jsonb state)
-- `agents` — 职员：agency_id, name, role, persona(jsonb 人格档案), state(jsonb 心情/压力/自信/声望/野心), status(active/departed)
-- `agent_memories` — 履历记忆（追加式）：agent_id, kind(稿件/被打回/高光/批评), content, edition_id
-- `editions` — 刊期：no, published_at, front_page_article_id
-- `articles` — 文章：edition_id, agency_id, author_agent_id, column(版面), headline, body, fact_refs(jsonb→event ids), status(published/killed), user_read_at, user_flagged
-- `meeting_logs` — 选题会/内部日志全文：edition_id, agency_id, transcript
-- `archive_cards` — 档案卡：kind(人物/作品/地点/主题), name, first_seen, mentions, bio_note
-- `interview_questions` — 采访：asked_by_agent_id, question, answer_event_id, status
-- `world_log` — 状态变更流水：who, field, delta, reason
+> 2026-07-06 修订：Supabase 出局（`*.supabase.co` 国内被墙实测 curl/代理均连接复位；haoqi 项目疑在 HK 区、pooler 也被掐；且无 access token 开新项目）。改用 Netlify Blobs——同站点存储，国内可达性已由 gaoyou/qiantaici 两个在用站点验证。
 
-RLS：单用户（auth.uid），所有表锁 user_id。AI 生成内容与原始记录分表存放（原则 4 的物理保障）。
+world store（单一 blob store）：
+- `state/agencies.json` — [{id, name, charter, style, state:{声望,财务,标题党倾向,严厉度}, subscribed}]
+- `state/agents.json` — [{id, agency_id, name, role, persona(人格档案), state:{心情,压力,自信,声望,野心}, status:active|departed}]
+- `state/interviews.json` — [{id, asked_by, question, status:open|answered|expired, answer_event_id, edition_no}]
+- `memories/<agentId>.json` — 履历记忆追加数组 [{kind:稿件|被打回|高光|批评|人事, content, edition_no, at}]
+- `archive/cards.json` — 档案卡 [{kind:人物|作品|地点|主题, name, first_seen, mentions, bio_note}]
+- `events/<ts>-<rand>.json` — 一切输入皆事件（append-only）：{id, type:diary|interview_answer|presser|read|flag|subscribe, raw_text?, article_id?, note?, question_id?, processed:false, wire_copy?, scores?, entities?, legacy_note?, created_at}。**用户的阅读/纠错/订阅行为也是事件**——由下一刊 tick 消费并结算世界状态，叙事与实现同构。
+- `editions/index.json` — [{no, label, published_at, front_headline}]
+- `editions/<no>.json` — 整期自包含：{no, label, published_at, front_article_id, articles:[{id, agency_id, author_agent_id, col, headline, body, fact_refs, facts:{event_id:raw_text 快照}, review_note, status}], meetings:[{agency_id, transcript}], backstage, world_log:[...]}（事实层快照内嵌，前端渲染零联表）
 
-## 6. 技术选型（多服务商免费拼接，无 Railway）
+并发安全靠写者拓扑而非锁：`events/*` 只有前端追加（不可变），其余全部只有 tick 单写者。AI 生成内容（editions）与原始记录（events）分开存放（原则 4 的物理保障）。
+
+## 6. 技术选型（多服务商免费拼接，无 Railway；2026-07-06 修订为 Netlify 主场）
 
 | 部件 | 服务 | 免费额度依据 |
 |---|---|---|
-| 前端 | GitHub Pages（Next.js 静态导出，沿用 haoqi-online 配方：客户端 Supabase） | 无限 |
-| 世界状态 | Supabase free tier（Postgres+Auth+RLS） | 500MB 数据库，纯文本世界用不完 |
-| 刊期 tick | **GitHub Actions cron**（私有仓库，Node 脚本跑完整管线） | 2000 分钟/月；每刊约 3-5 分钟 × 60 刊/月 ≈ 300 分钟，余量 6 倍 |
-| LLM | DeepSeek（日常全部岗位）+ StepFun step-3.7-flash（备选/兜底，走 api.stepfun.ai）；Claude 留给未来年度特稿"明星主笔" | 每刊 20-30 次调用 ≈ 5-10 万 token/天，DeepSeek 价位≈每天几毛，一个月一杯奶茶 |
-| 备胎 | Netlify（已有 CLI+token，若需要即时函数）/ Cloudflare Pages | — |
+| 前端+API | Netlify 单站点：Next.js 静态导出（无 basePath）+ Functions（登录/读世界/写事件） | https://the-news-room-chichu.netlify.app ；国内可达性已由 gaoyou/qiantaici 验证；Functions 125k 次/月 |
+| 世界状态 | Netlify Blobs（同站点，§5 布局） | 免费额度内，纯文本世界极小 |
+| 刊期 tick | **GitHub Actions cron**（公有仓库标准 runner 免费，Node 脚本跑完整管线，经 token+siteID 外部读写 Blobs） | 每刊约 3-6 分钟 × 60 刊/月 |
+| LLM | DeepSeek（日常全部岗位）+ StepFun step-3.7-flash（兜底，走 api.stepfun.ai，max_tokens≥1400）；Claude 留给未来年度特稿"明星主笔" | 每刊 20-30 次调用 ≈ 5-10 万 token/天，DeepSeek 价位≈每天几毛，一个月一杯奶茶 |
+| 认证 | 单用户口令 → HMAC 会话 cookie；APP_PASSWORD_HASH + SESSION_SECRET 存站点环境变量 | 自带，零依赖 |
 
-- Actions secrets 存 DeepSeek/StepFun key + Supabase service key；tick 脚本用 service key 绕过 RLS 读写世界。
-- "催更/发布会"即时出刊（P2）：Supabase Edge Function 持 GitHub PAT 调 workflow_dispatch。
+- Actions secrets：NETLIFY_AUTH_TOKEN、NETLIFY_SITE_ID、DEEPSEEK_API_KEY、STEPFUN_API_KEY。
+- 部署走 `netlify deploy --prod`（qiantaici 同款，不吃 Netlify 构建分钟）。
+- Supabase 出局原因记录于 §5 修订注——**别回头再选它，除非用户换了网络环境**。
+- "催更/发布会"即时出刊（P2）：Function 持 GitHub PAT 调 workflow_dispatch。
 - **模型分级=报社贫富**（设定钩子）：报社财务好→用更好的模型/更高 max_tokens，文风升级是涌现且叙事化的。v1 全员 DeepSeek，字段预留。
 - 成本护栏：每刊调用上限（如 40 次）+ 单文章 token 上限。这不是省 token 哲学倒退，是防 bug 死循环刷爆账单的保险丝。
 

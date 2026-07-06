@@ -1,0 +1,9 @@
+{
+  "name": "the-news-room",
+  "private": true,
+  "type": "module",
+  "description": "一个只报道你的新闻世界",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

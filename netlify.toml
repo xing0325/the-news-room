@@ -1,0 +1,17 @@
+[build]
+  command = "cd web && npm ci && npm run build"
+  publish = "web/out"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[dev]
+  command = "npm --prefix web run dev"
+  targetPort = 8210
+  framework = "#custom"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200

@@ -10,6 +10,11 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-06-the-news-room-design.md`
 
+> **⚠️ 2026-07-06 执行期架构转向（Task 0 实测驱动，spec §5/§6 已同步修订）：**
+> Supabase 出局——`*.supabase.co` 国内直连/双代理口均被墙，疑似 HK 区 pooler 也被掐，且无 access token 开新项目。全栈改 **Netlify 单站点**：静态前端 + Functions（登录=口令→HMAC cookie；数据 API 读 Blobs；用户行为写 append-only 事件）+ **Netlify Blobs 存世界状态**（布局见 spec §5），tick 仍在 GitHub Actions（经 NETLIFY_AUTH_TOKEN+SITE_ID 外部读写 Blobs）。
+> 映射变化：Task 2 的 schema.sql/seed.sql → `engine/src/store.js`（blobs 适配层）+ `engine/src/seed.js`；Task 7 的 supabase 客户端 → `netlify/functions/*` + 前端 fetch('/api/*')；Task 10 secrets 改为 NETLIFY_AUTH_TOKEN / NETLIFY_SITE_ID / DEEPSEEK_API_KEY / STEPFUN_API_KEY。
+> 站点：https://the-news-room-chichu.netlify.app （site_id 2e739c68-cb83-429b-b0f4-4dbb9e2f95a9）
+
 ---
 
 ## File Structure

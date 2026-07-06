@@ -1,0 +1,13 @@
+{
+  "name": "the-news-room-web",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 8210",
+    "build": "next build"
+  },
+  "dependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
