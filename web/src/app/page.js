@@ -1,3 +1,18 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import EditionView from '../components/EditionView';
+import { api } from '../lib/api';
+
 export default function Home() {
-  return <main style={{ padding: 40 }}>报纸印刷中……（v1 施工现场）</main>;
+  const [state, setState] = useState({ loading: true, edition: null });
+
+  useEffect(() => {
+    api.get('/api/feed?no=latest')
+      .then((d) => setState({ loading: false, edition: d.edition }))
+      .catch(() => setState({ loading: false, edition: null }));
+  }, []);
+
+  if (state.loading) return <p className="loading">正在送报……</p>;
+  return <EditionView edition={state.edition} />;
 }
